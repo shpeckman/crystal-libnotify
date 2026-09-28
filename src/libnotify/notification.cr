@@ -14,9 +14,10 @@ class Libnotify::Notification
   property transient : Bool
   property urgency   : Libnotify::C::NotifyUrgency
 
-  # Keep a reference to the blocks so the Garbage Collector doesn't free them
-  # while the native C library might still try to call them.
+  # Keep a reference to the blocks and their boxed pointers so the Garbage
+  # Collector doesn't free them while the native C library might still call them.
   @action_callbacks = [] of Proc(Nil)
+  @action_boxes     = [] of Void*
 
   def initialize(@summary = nil, @body = nil, @icon_path = nil,
                  @timeout = -1, @category = nil, @urgency = Libnotify::C::NotifyUrgency::NotifyUrgencyNormal,
@@ -69,6 +70,7 @@ class Libnotify::Notification
   def add_action(action_key : String, label : String, &block : ->)
     @action_callbacks << block
     boxed_data = Box.box(block)
+    @action_boxes << boxed_data
 
     callback = ->(n : C::NotifyNotification*, action : LibC::Char*, user_data : Void*) {
       Box(Proc(Nil)).unbox(user_data).call
@@ -84,6 +86,7 @@ class Libnotify::Notification
 
   def clear_actions
     @action_callbacks.clear
+    @action_boxes.clear
     C.notification_clear_actions(@notify)
   end
 
